@@ -1,6 +1,7 @@
 // firebase.js (frontend)
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue } from "firebase/database";
+import { getAuth } from "firebase/auth";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrJByJlvjgzF-Q6rZn1d3pMLSH6JmcXD8",
@@ -13,4 +14,6 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+export const auth = getAuth(app);
 export const db = getDatabase(app);

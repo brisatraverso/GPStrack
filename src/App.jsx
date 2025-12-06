@@ -11,9 +11,14 @@ import {
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
-import { db } from "./firebase";
+import { db, auth } from "./firebase";
 import { ref, onValue } from "firebase/database";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
 import Historial from "./Historial";
+import Login from "./Login";
+import Register from "./Register";
+import ResetPassword from "./ResetPassword";
 
 import {
   AppBar,
@@ -22,7 +27,8 @@ import {
   Card,
   CardContent,
   Typography,
-  Box
+  Box,
+  Button
 } from "@mui/material";
 
 // ==== ICONO ====
@@ -37,9 +43,18 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41]
 });
 
+// FIX MAPA
+function FixMapResize() {
+  const map = useMap();
+  useEffect(() => {
+    setTimeout(() => map.invalidateSize(), 300);
+  }, [map]);
+  return null;
+}
+
 const defaultPosition = [-32.48, -58.23];
 
-// ==== HAVERSINE ====
+// HAVERSINE
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const p = Math.PI / 180;
@@ -55,7 +70,6 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
-// ==== ChangeView ====
 function ChangeView({ center }) {
   const map = useMap();
   useEffect(() => {
@@ -65,6 +79,17 @@ function ChangeView({ center }) {
 }
 
 export default function App() {
+
+  // === AUTENTICACIÓN ===
+  const [user, setUser] = useState(undefined);
+  const [screen, setScreen] = useState("login");
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    return () => unsub();
+  }, []);
+
+  // === ESTADOS PRINCIPALES DE LA APP ===
   const [tab, setTab] = useState("live");
   const [position, setPosition] = useState(null);
   const [path, setPath] = useState([]);
@@ -76,13 +101,13 @@ export default function App() {
   const [velMax, setVelMax] = useState(0);
   const [velProm, setVelProm] = useState(0);
 
-  // ===== EN VIVO =====
+  // === EN VIVO ===
   useEffect(() => {
     if (tab !== "live") return;
 
-    const starCountRef = ref(db, "vehiculo1");
+    const starRef = ref(db, "vehiculo1");
 
-    onValue(starCountRef, (snapshot) => {
+    onValue(starRef, (snapshot) => {
       const data = snapshot.val();
 
       if (data?.lat && data?.lng) {
@@ -93,7 +118,7 @@ export default function App() {
     });
   }, [tab]);
 
-  // ===== HISTORIAL =====
+  // === HISTORIAL ===
   const loadHistory = (fecha) => {
     setSelectedDate(fecha);
     setTab("history");
@@ -134,8 +159,66 @@ export default function App() {
     });
   };
 
+  // =====================================================
+  // === RENDER LÓGICO SIN ROMPER LAS REGLAS DE HOOKS ===
+  // =====================================================
+
+  if (user === undefined) {
+    return (
+      <Box
+        sx={{
+          height: "100vh",
+          color: "#fff",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          bgcolor: "#0d1117"
+        }}
+      >
+        Cargando...
+      </Box>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        {screen === "login" && <Login onNavigate={setScreen} />}
+        {screen === "register" && <Register onNavigate={setScreen} />}
+        {screen === "reset" && <ResetPassword onNavigate={setScreen} />}
+      </>
+    );
+  }
+
+  // ===============================================
+  // === USUARIO LOGEADO → MOSTRAR LA APLICACIÓN ===
+  // ===============================================
+
   return (
-    <Box sx={{ height: "100vh", width: "100vw", bgcolor: "#0d1117", color: "#eee", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        height: "100vh",
+        width: "100vw",
+        bgcolor: "#0d1117",
+        color: "#eee",
+        display: "flex",
+        flexDirection: "column"
+      }}
+    >
+
+      {/* BOTÓN LOGOUT */}
+      <Box sx={{ position: "absolute", top: 10, right: 10, zIndex: 2000 }}>
+        <Button
+          onClick={() => signOut(auth)}
+          variant="contained"
+          sx={{
+            bgcolor: "#dc2626",
+            ":hover": { bgcolor: "#b91c1c" }
+          }}
+        >
+          Cerrar sesión
+        </Button>
+      </Box>
 
       {/* BARRA SUPERIOR */}
       <AppBar position="static" sx={{ background: "#111827" }}>
@@ -143,7 +226,6 @@ export default function App() {
           value={tab}
           onChange={(e, value) => setTab(value)}
           textColor="inherit"
-          indicatorColor="primary"
           centered
         >
           <Tab label="En vivo" value="live" />
@@ -151,10 +233,9 @@ export default function App() {
         </Tabs>
       </AppBar>
 
-      {/* CONTENIDO PRINCIPAL */}
       <Box sx={{ flexGrow: 1, display: "flex" }}>
 
-        {/* ==== SIDEBAR SOLO CUANDO tab === "history" ==== */}
+        {/* SIDEBAR ESTADISTICAS */}
         {tab === "history" && (
           <Box
             sx={{
@@ -182,7 +263,7 @@ export default function App() {
                 sx={{
                   background: "#1f2937",
                   color: "#fff",
-                  flex: "0 0 120px", // TODAS MISMO TAMAÑO
+                  flex: "0 0 120px",
                   display: "flex",
                   alignItems: "center"
                 }}
@@ -196,16 +277,22 @@ export default function App() {
           </Box>
         )}
 
-        {/* ==== PANEL DE SELECCIÓN DE FECHA ==== */}
+        {/* PANEL DE FECHAS */}
         {tab === "historial" && (
           <Box sx={{ width: "320px", bgcolor: "#0f172a", p: 2 }}>
             <Historial onSelectDate={loadHistory} />
           </Box>
         )}
 
-        {/* ==== MAPA ==== */}
+        {/* MAPA */}
         <Box sx={{ flexGrow: 1 }}>
-          <MapContainer center={defaultPosition} zoom={15} style={{ height: "100%", width: "100%" }}>
+          <MapContainer
+            center={defaultPosition}
+            zoom={15}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <FixMapResize />
+
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
             {tab === "live" && position && (
@@ -214,13 +301,13 @@ export default function App() {
                 <Marker position={position} icon={markerIcon}>
                   <Popup>En vivo</Popup>
                 </Marker>
-                {path.length > 1 && <Polyline positions={path} color="#4f8cff" />}
+                {path.length > 1 && <Polyline positions={path} />}
               </>
             )}
 
             {tab === "history" && histPath.length > 1 && (
               <>
-                <Polyline positions={histPath} color="#0025f8ff" />
+                <Polyline positions={histPath} />
                 <Marker position={histPath[0]} icon={markerIcon}>
                   <Popup>Inicio ({selectedDate})</Popup>
                 </Marker>
