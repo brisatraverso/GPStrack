@@ -15,12 +15,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd frontend
+          cd GPS-TRACKER/frontend
           npm install
 
       - name: Build project
         run: |
-          cd frontend
+          cd GPS-TRACKER/frontend
           npm run build
 
       - uses: FirebaseExtended/action-hosting-deploy@v0

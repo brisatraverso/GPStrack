@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "frontend/dist",
+    "public": "GPS-TRACKER/frontend/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
